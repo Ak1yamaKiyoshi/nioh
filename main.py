@@ -7,17 +7,23 @@ import pandas as pd
 import numpy as np 
 import cv2 as cv
 
+import time
+from datetime import datetime
+
 import matplotlib
 matplotlib.use('qtagg')
 import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 import torchvision
 from torchvision.transforms import transforms
 from torchvision.models.inception import Inception3
+from model import Model, save_checkpoint
 
+from dataset import InsaneDataset
+from loss import RMSLELoss
 
 
 def get_memory_usage():
@@ -27,124 +33,14 @@ def get_memory_usage():
     return memory_mb
 
 
-class InsaneDataset(Dataset):
-    def __init__(self):
-        self._path_image_timestamps_csv = cfg.path_image_timestamps_csv
-        self._path_sensors_lrf_range_csv = cfg.path_lrf_range_csv
-
-        self._images_folder = cfg.path_images_dataset
-        self._imageprefix = os.path.join(self._images_folder, "img")
-
-        df = pd.read_csv(self._path_image_timestamps_csv)
-        self._timestamps = df.to_numpy()
-        df = pd.read_csv(self._path_sensors_lrf_range_csv)
-        self._altitude = df[[cfg.col_t, cfg.col_lrf_range]].to_numpy()
-
-    def __len__(self):
-        return self._timestamps.shape[0]-1
-
-    def __getitem__(self, idx):
-        _, stamp, name = self._timestamps[idx]
-
-        name = f"{int(name)}.png"
-
-        abs_imagepaths = os.path.join(self._imageprefix, name)
-
-        img = cv.imread(abs_imagepaths, cv.IMREAD_GRAYSCALE)
-        alt = min(self._altitude, key=lambda x: abs(x[0] - stamp))[1]
-
-        img = cv.resize(img, (96, 96))
-        img = torch.from_numpy(img).float() / 255.0
-        img = img.view(1, 96, 96)
-        return img, alt
-
-
-class Block(nn.Module):
-    def __init__(self, in_channels=1, out_channels=1):
-        super().__init__()
-        self.conv3 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
-        self.conv5 = nn.Conv2d(in_channels, out_channels, kernel_size=5, stride=1, padding=2) 
-        self.conv7 = nn.Conv2d(in_channels, out_channels, kernel_size=7, stride=1, padding=3)
-
-        self.selector = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(in_channels, 3, 1),
-            nn.Softmax(dim=1)
-        )
-
-    def forward(self, x):
-        weights = self.selector(x)
-        conv3_out = self.conv3(x)
-        conv5_out = self.conv5(x)
-        conv7_out = self.conv7(x)
-
-        out = (weights[:, 0:1] * conv3_out + 
-               weights[:, 1:2] * conv5_out + 
-               weights[:, 2:3] * conv7_out)
-        return out
-
-
-class Model(nn.Module):
-    def __init__(self):
-        super().__init__()
-        hidden = 100
-        hidden_out = 32
-        self.conv2fc = 512
-        self.first_run = True
-        self.conv = nn.Sequential(
-            Block(1, hidden),
-            nn.BatchNorm2d(hidden),
-            nn.ReLU(), 
-            Block(hidden, hidden_out),
-            nn.BatchNorm2d(hidden_out),
-            nn.ReLU()
-        )
-
-        self.conv_out = nn.Sequential(
-            nn.Conv2d(hidden_out, hidden_out*2, 3, stride=2, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(hidden_out*2, 32, 3, stride=5, padding=1),
-            nn.ReLU(),
-        )
-
-        self.block_fc = nn.Sequential(
-            nn.Linear(32*10*10, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Linear(128, 1),
-            nn.ReLU(),
-        )
-
-        self.relu = nn.ReLU()
-
-    def forward(self, x):
-        x = self.conv(x)
-        x = self.conv_out(x)
-        x = x.view(x.size(0), -1)
-
-# img, alt = dat[1600]
-# 
-# cv.imshow(f"{alt:3.2f}", img)
-# cv.waitKey(0)
-# 
-# #plt.plot(altitude_data[:, 1])
-# #plt.show() 
-# 
-# print(df.to_numpy())
-
-        x = self.block_fc(x)
-        return x.view(-1)
-
-class RMSLELoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.mse = nn.MSELoss()
-
-    def forward(self, pred, actual):
-        return torch.sqrt(self.mse(torch.log(pred + 1), torch.log(actual + 1)))
+def print_model_parameters(model):
+    total_params = 0
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            params = param.numel()
+            print(f"{name}: {params:,} parameters")
+            total_params += params
+    print(f"\nTotal trainable parameters: {total_params:,}")
 
 
 dataset = InsaneDataset()
@@ -152,33 +48,82 @@ loader = DataLoader(dataset, 8, True)
 
 
 model = Model()
+print_model_parameters(model)
+
+
 criterion = RMSLELoss()
 device = cuda = torch.device("cuda")
 model.to(cuda)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.05,)
 losses = []
 
-print('training...?')
-for epoch in range(100):
+total_epochs_train = 100
+
+
+def prettify_float(l):
+    output = ""
+    for e in l:
+        output += f"{e:5.1f}, "
+    return output
+
+
+def checkpoint_name(epoch, model_name, epoch_loss) -> str:
+    datestr = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return f"cp_{epoch}_{model_name}_{datestr}_{epoch_loss:3.2f}.pth"
+
+
+
+for epoch in range(total_epochs_train):
     epoch_loss = 0
-    for input in loader:
-        img = input[0].to(cuda, dtype=torch.float32)
-        alt = input[1].to(cuda, dtype=torch.float32)
-        out = model(img)
+
+    # Train pass
+    batches_in_loader = len(loader)
+    times_per_batch = []
+
+    for i, batch in enumerate(loader):
+        time_batch_start = time.monotonic()
+
+        img = batch[0].to(cuda, dtype=torch.float32)
+        alt = batch[1].to(cuda, dtype=torch.float32)
         logits = model(img)
+
         loss = criterion(logits.cpu(), alt.cpu())
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        epoch_loss += loss.item()
+
+        time_batch_end = time.monotonic()
+        time_per_batch = time_batch_end - time_batch_start
+        times_per_batch.append(time_per_batch)
+        mean_time_batch = np.mean(times_per_batch)
+        remained_time_estimate = (batches_in_loader - i+1) * mean_time_batch
+
+        loss_per_batch = loss.item()
+        epoch_loss += loss_per_batch
+        print(f"\r [{i+1:4d}/{batches_in_loader:4d}]  bloss: {loss_per_batch:5.2f}, complete in: {remained_time_estimate:7.2f}s.", end="", flush=False)
         break
+    print()
     
     img, alt = next(iter(loader))
-    img = input[0].to(cuda, dtype=torch.float32)
-    alt = input[1].to(cuda, dtype=torch.float32)
+    img = batch[0].to(cuda, dtype=torch.float32)
+    alt = batch[1]
     pred = model(img)
-    print(f"pred: {pred}, alt: {alt}")
-    print(epoch_loss)
+    
+    actual_altitude = alt.detach().numpy().tolist()
+    predicted_altitude = pred.cpu().detach().numpy().tolist()
+
+    print(f""" Epoch: {epoch+1:4d}/{total_epochs_train:4d}
+    Loss: {epoch_loss}
+    actual: {prettify_float(actual_altitude)}
+    pred:   {prettify_float(predicted_altitude)}
+    """)
+
+    if not os.path.exists('checkpoints/'):
+        os.mkdir('checkpoints')
+
+    save_checkpoint(model, optimizer, epoch, epoch_loss)
+
+
 
 
 # TODO: 
