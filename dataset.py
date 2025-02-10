@@ -4,7 +4,7 @@ from config import Config as cfg
 import cv2 as cv 
 import os 
 import torch 
-
+import numpy as np
 
 class InsaneDataset(Dataset):
     def __init__(self):
@@ -16,8 +16,14 @@ class InsaneDataset(Dataset):
 
         df = pd.read_csv(self._path_image_timestamps_csv)
         self._timestamps = df.to_numpy()
+        
         df = pd.read_csv(self._path_sensors_lrf_range_csv)
         self._altitude = df[[cfg.col_t, cfg.col_lrf_range]].to_numpy()
+
+        self._timestamps = np.array([
+            ts_row for ts_row in self._timestamps 
+            if min(self._altitude, key=lambda x: abs(x[0] - ts_row[1]))[1] >= 0.5
+        ])
 
     def __len__(self):
         return self._timestamps.shape[0]-1

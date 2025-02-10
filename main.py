@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 import torchvision
 from torchvision.transforms import transforms
 from torchvision.models.inception import Inception3
-from model import Model, save_checkpoint
+from model import Model, save_checkpoint, load_checkpoint
 
 from dataset import InsaneDataset
 from loss import RMSLELoss
@@ -43,21 +43,6 @@ def print_model_parameters(model):
     print(f"\nTotal trainable parameters: {total_params:,}")
 
 
-dataset = InsaneDataset()
-loader = DataLoader(dataset, 8, True)
-
-
-model = Model()
-print_model_parameters(model)
-
-
-criterion = RMSLELoss()
-device = cuda = torch.device("cuda")
-model.to(cuda)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.05,)
-losses = []
-
-total_epochs_train = 100
 
 
 def prettify_float(l):
@@ -73,8 +58,26 @@ def checkpoint_name(epoch, model_name, epoch_loss) -> str:
 
 
 
+dataset = InsaneDataset()
+loader = DataLoader(dataset, 64, True)
+
+model = Model()
+model, start_epoch, loss = load_checkpoint("checkpoints/cp_27_model_20250209-204359_5.53.pth")
+print_model_parameters(model)
+
+
+criterion = RMSLELoss()
+device = cuda = torch.device("cuda")
+model.to(cuda)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.05,)
+losses = []
+
+total_epochs_train = 100
+
+
 for epoch in range(total_epochs_train):
     epoch_loss = 0
+    epoch = start_epoch + epoch
 
     # Train pass
     batches_in_loader = len(loader)
@@ -101,7 +104,6 @@ for epoch in range(total_epochs_train):
         loss_per_batch = loss.item()
         epoch_loss += loss_per_batch
         print(f"\r [{i+1:4d}/{batches_in_loader:4d}]  bloss: {loss_per_batch:5.2f}, complete in: {remained_time_estimate:7.2f}s.", end="", flush=False)
-        break
     print()
     
     img, alt = next(iter(loader))
@@ -112,11 +114,12 @@ for epoch in range(total_epochs_train):
     actual_altitude = alt.detach().numpy().tolist()
     predicted_altitude = pred.cpu().detach().numpy().tolist()
 
-    print(f""" Epoch: {epoch+1:4d}/{total_epochs_train:4d}
-    Loss: {epoch_loss}
-    actual: {prettify_float(actual_altitude)}
-    pred:   {prettify_float(predicted_altitude)}
-    """)
+    print(f""" 
+[{' '*8}] Epoch: {epoch+1:4d}/{total_epochs_train:4d}
+[{' '*8}] Loss: {epoch_loss}
+[{' '*8}] actual: {prettify_float(actual_altitude)}
+[{' '*8}] pred:   {prettify_float(predicted_altitude)}
+""")
 
     if not os.path.exists('checkpoints/'):
         os.mkdir('checkpoints')
@@ -127,7 +130,4 @@ for epoch in range(total_epochs_train):
 
 
 # TODO: 
-# - Cutoff from dataset alt < 0.5meters. 
 # - evaluation dataset 
-# - print(f"\r batch: {i+1}/{len(train_dataloader)}, batch/s: {avg_batch_time:3.2f}, remaining: {time_remaining_s:5.1f}s., batch loss: {loss.item():12.5f}, epoch loss: {epoch_loss:12.5f}, lr: {learning_rate}", end="", flush=False)
-# - checkpoint wiritn'
