@@ -6,38 +6,63 @@ import os
 import torch 
 import numpy as np
 
+
 class InsaneDataset(Dataset):
     def __init__(self):
-        self._path_image_timestamps_csv = cfg.path_image_timestamps_csv
-        self._path_sensors_lrf_range_csv = cfg.path_lrf_range_csv
+        datasets = [
+            "indoor_1",
+            "indoor_2", 
+            "indoor_3",
+            "outdoor_1",
+            "transition_1", 
+            "transition_2",
+            "transition_3",
+        ]
 
-        self._images_folder = cfg.path_images_dataset
-        self._imageprefix = os.path.join(self._images_folder, "img")
+        self._all_altitudes = []
+        self._all_images = []
 
-        df = pd.read_csv(self._path_image_timestamps_csv)
-        self._timestamps = df.to_numpy()
-        
-        df = pd.read_csv(self._path_sensors_lrf_range_csv)
-        self._altitude = df[[cfg.col_t, cfg.col_lrf_range]].to_numpy()
+        for d in datasets:
+            dataset_foldername = os.path.join(cfg.prefix, d)
+            camera = dataset_foldername + "_nav_cam"
+            sensors = dataset_foldername + "_sensors" 
+            csv_images = os.path.join(camera, "nav_cam_timestamps.csv")
+            csv_lrf = os.path.join(sensors, "lrf_range.csv")
 
-        self._timestamps = np.array([
-            ts_row for ts_row in self._timestamps 
-            if min(self._altitude, key=lambda x: abs(x[0] - ts_row[1]))[1] >= 0.5
-        ])
+            if all([os.path.exists(p) for p in [camera, sensors, csv_images, csv_lrf]]):
+                df = pd.read_csv(csv_images)
+                timestamps = df.to_numpy()
+                
+                df = pd.read_csv(csv_lrf)
+                altitude = df[[cfg.col_t, cfg.col_lrf_range]].to_numpy()
+
+                timestamps = np.array([
+                    ts_row for ts_row in timestamps 
+                    if min(altitude, key=lambda x: abs(x[0] - ts_row[1]))[1] >= 0.5
+                ])
+                
+                images = []
+                for idx, row in enumerate(timestamps):
+                    _, stamp, name = row
+                    name = f"img/{int(name)}.png"
+                    image_path = os.path.join(camera, name)
+                    images.append([idx, image_path, stamp])
+
+                self._all_altitudes.extend(altitude)
+                self._all_images.extend(images)
+
+        self._all_altitudes = np.array(self._all_altitudes)
+        self._all_images = np.array(self._all_images)
 
     def __len__(self):
-        return self._timestamps.shape[0]-1
+        return len(self._all_images)
 
     def __getitem__(self, idx):
-        _, stamp, name = self._timestamps[idx]
-
-        name = f"{int(name)}.png"
-
-        abs_imagepaths = os.path.join(self._imageprefix, name)
-
-        img = cv.imread(abs_imagepaths, cv.IMREAD_GRAYSCALE)
-        alt = min(self._altitude, key=lambda x: abs(x[0] - stamp))[1]
-
+        _, image_path, stamp = self._all_images[idx]
+        img = cv.imread(image_path, cv.IMREAD_GRAYSCALE)
+        stamp = float(stamp)
+        alt = min(self._all_altitudes, key=lambda x: abs(x[0] - stamp))[1]
+        
         img = cv.resize(img, (96, 96))
         img = torch.from_numpy(img).float() / 255.0
         img = img.view(1, 96, 96)

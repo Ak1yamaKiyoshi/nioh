@@ -49,22 +49,25 @@ def prettify_float(l):
         output += f"{e:5.1f}, "
     return output
 
-
+print("Loading dataset")
 dataset = InsaneDataset()
-loader = DataLoader(dataset, 16, True)
+print("Dataset loaded")
+
+
+loader = DataLoader(dataset, 64, True)
 
 model = Model()
-model, start_epoch, loss = load_checkpoint("checkpoints/cp_[82]_Model_v1_(2025.02.10-08:02:18)_(l:6.52).pth")
+model, start_epoch, loss = load_checkpoint("checkpoints/cp_[83]_Model_v1_(2025.02.10-19:58:23)_(l:30.43).pth")
 print_model_parameters(model)
 
 
 criterion = RMSLELoss()
 device = cuda = torch.device("cuda")
 model.to(cuda)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.0005,)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.05,)
 losses = []
 
-total_epochs_train = 100
+total_epochs_train = 150
 
 
 for epoch in range(total_epochs_train):
@@ -117,8 +120,8 @@ for epoch in range(total_epochs_train):
         os.mkdir('checkpoints')
 
     save_checkpoint(model, optimizer, epoch, epoch_loss)
-
-
+    torch.cuda.empty_cache()
+    
 
 
 # TODO: 
