@@ -31,7 +31,7 @@ class Block(nn.Module):
         return out
 
 
-class Model(nn.Module):
+class Model_v1(nn.Module):
     def __init__(self):
         super().__init__()
         hidden = 100
@@ -75,16 +75,23 @@ class Model(nn.Module):
         x = self.block_fc(x)
         return x.view(-1)
 
+Model = Model_v1
+
+
+def checkpoint_name(epoch, model_name, epoch_loss) -> str:
+    datestr = datetime.now().strftime("(%Y.%m.%d-%H:%M:%S)")
+    return f"cp_[{epoch}]_{model_name}_{datestr}_(l:{epoch_loss:3.2f}).pth"
 
 def save_checkpoint(model, optimizer, epoch, loss):
     checkpoint = {
         'model_state_dict': model.state_dict(),
-        'model': model,  # Save full architecture
+        'model': model,
         'optimizer_state_dict': optimizer.state_dict(),
         'epoch': epoch,
         'loss': loss
     }
-    path = f'checkpoints/cp_{epoch}_model_{datetime.now().strftime("%Y%m%d-%H%M%S")}_{loss:.2f}.pth'
+    
+    path = f'checkpoints/{checkpoint_name(epoch, f"{model.__class__.__name__}", loss)}'
     torch.save(checkpoint, path)
     return path
 

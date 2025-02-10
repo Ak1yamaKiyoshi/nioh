@@ -43,8 +43,6 @@ def print_model_parameters(model):
     print(f"\nTotal trainable parameters: {total_params:,}")
 
 
-
-
 def prettify_float(l):
     output = ""
     for e in l:
@@ -52,17 +50,11 @@ def prettify_float(l):
     return output
 
 
-def checkpoint_name(epoch, model_name, epoch_loss) -> str:
-    datestr = datetime.now().strftime("%Y%m%d-%H%M%S")
-    return f"cp_{epoch}_{model_name}_{datestr}_{epoch_loss:3.2f}.pth"
-
-
-
 dataset = InsaneDataset()
-loader = DataLoader(dataset, 64, True)
+loader = DataLoader(dataset, 8, True)
 
 model = Model()
-model, start_epoch, loss = load_checkpoint("checkpoints/cp_27_model_20250209-204359_5.53.pth")
+model, start_epoch, loss = load_checkpoint("checkpoints/cp_30_model_20250210-065641_2.47.pth")
 print_model_parameters(model)
 
 
@@ -130,4 +122,5 @@ for epoch in range(total_epochs_train):
 
 
 # TODO: 
-# - evaluation dataset 
+# - evaluation dataset
+# - rewrite dataloader, make sure that in one batch there is 0-1, 15-20, 1-15 alts in same amount 
