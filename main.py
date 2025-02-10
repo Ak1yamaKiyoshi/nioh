@@ -51,17 +51,17 @@ def prettify_float(l):
 
 
 dataset = InsaneDataset()
-loader = DataLoader(dataset, 8, True)
+loader = DataLoader(dataset, 16, True)
 
 model = Model()
-model, start_epoch, loss = load_checkpoint("checkpoints/cp_30_model_20250210-065641_2.47.pth")
+model, start_epoch, loss = load_checkpoint("checkpoints/cp_[82]_Model_v1_(2025.02.10-08:02:18)_(l:6.52).pth")
 print_model_parameters(model)
 
 
 criterion = RMSLELoss()
 device = cuda = torch.device("cuda")
 model.to(cuda)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.05,)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.0005,)
 losses = []
 
 total_epochs_train = 100
@@ -95,7 +95,7 @@ for epoch in range(total_epochs_train):
 
         loss_per_batch = loss.item()
         epoch_loss += loss_per_batch
-        print(f"\r [{i+1:4d}/{batches_in_loader:4d}]  bloss: {loss_per_batch:5.2f}, complete in: {remained_time_estimate:7.2f}s.", end="", flush=False)
+        print(f"\r[{i+1:4d}/{batches_in_loader:4d}]  bloss: {loss_per_batch:5.2f}, complete in: {remained_time_estimate:7.2f}s.", end="", flush=False)
     print()
     
     img, alt = next(iter(loader))
@@ -107,10 +107,10 @@ for epoch in range(total_epochs_train):
     predicted_altitude = pred.cpu().detach().numpy().tolist()
 
     print(f""" 
-[{' '*8}] Epoch: {epoch+1:4d}/{total_epochs_train:4d}
-[{' '*8}] Loss: {epoch_loss}
-[{' '*8}] actual: {prettify_float(actual_altitude)}
-[{' '*8}] pred:   {prettify_float(predicted_altitude)}
+[ - -- - ] Epoch: {epoch+1:4d}/{total_epochs_train:4d}
+[ - -- - ] Loss: {epoch_loss}
+[ - -- - ] actual: {prettify_float(actual_altitude)}
+[ - -- - ] pred:   {prettify_float(predicted_altitude)}
 """)
 
     if not os.path.exists('checkpoints/'):
