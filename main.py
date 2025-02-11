@@ -54,11 +54,11 @@ dataset = InsaneDataset()
 print("Dataset loaded")
 
 
-loader = DataLoader(dataset, 64, True)
+loader = DataLoader(dataset, 50, True)
 
 model = Model()
 start_epoch = 0
-# model, start_epoch, loss = load_checkpoint("checkpoints/cp_[90]_Model_v1_(2025.02.10-21:04:16)_(l:14.67).pth    ")
+# model, start_epoch, loss = load_checkpoint("checkpoints/cp_[1]_Model_v1_(2025.02.11-11:59:34)_(l:53.32).pth")
 print_model_parameters(model)
 
 
