@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 dataset = InsaneDataset()
 loader = DataLoader(dataset, 1, False)
 
-model, epoch, loss = load_checkpoint("checkpoints/cp_[82]_Model_v1_(2025.02.10-08:02:18)_(l:6.52).pth")
+model, epoch, loss = load_checkpoint("checkpoints/cp_[79]_Model_v1_(2025.02.11-08:20:43)_(l:5.57).pth")
 model.eval()
 
 predictions = []

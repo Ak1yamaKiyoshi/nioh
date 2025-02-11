@@ -65,5 +65,5 @@ class InsaneDataset(Dataset):
         
         img = cv.resize(img, (96, 96))
         img = torch.from_numpy(img).float() / 255.0
-        img = img.view(1, 96, 96)
+        img = img.view(1,96, 96)
         return img, alt

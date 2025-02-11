@@ -31,15 +31,21 @@ class Block(nn.Module):
         return out
 
 
-class Model_v1(nn.Module):
+class Model_v2(nn.Module):
     def __init__(self):
         super().__init__()
-        hidden = 100
-        hidden_out = 32
+        hidden = 32
+        hidden_out = 16
         self.conv2fc = 512
         self.first_run = True
         self.conv = nn.Sequential(
-            Block(1, hidden),
+            Block(1, 96),
+            nn.BatchNorm2d(96),
+            nn.ReLU(), 
+            Block(96, hidden),
+            nn.BatchNorm2d(hidden),
+            nn.ReLU(), 
+            Block(hidden, hidden),
             nn.BatchNorm2d(hidden),
             nn.ReLU(), 
             Block(hidden, hidden_out),
@@ -58,10 +64,10 @@ class Model_v1(nn.Module):
             nn.Linear(32*10*10, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(256, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU(),
-            nn.Linear(128, 1),
+            nn.Linear(256, 1),
             nn.ReLU(),
         )
 
@@ -75,7 +81,7 @@ class Model_v1(nn.Module):
         x = self.block_fc(x)
         return x.view(-1)
 
-Model = Model_v1
+Model = Model_v2
 
 
 def checkpoint_name(epoch, model_name, epoch_loss) -> str:
