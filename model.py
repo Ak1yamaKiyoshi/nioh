@@ -31,7 +31,7 @@ class Block(nn.Module):
         return out
 
 
-class Model_v3_Long_Conv(nn.Module):
+class Model_v4_Long_ConvFC(nn.Module):
     def __init__(self):
         super().__init__()
         hidden = 32
@@ -54,20 +54,32 @@ class Model_v3_Long_Conv(nn.Module):
         )
 
         self.conv_out = nn.Sequential(
-            nn.Conv2d(hidden_out, hidden_out*2, 3, stride=2, padding=1),
+            nn.Conv2d(hidden_out, hidden_out, 3, stride=2, padding=1),
+            nn.BatchNorm2d(hidden_out),
             nn.ReLU(),
-            nn.Conv2d(hidden_out*2, 32, 3, stride=5, padding=1),
+            nn.Conv2d(hidden_out, hidden_out, 3, stride=5, padding=1),
+            nn.BatchNorm2d(hidden_out),
             nn.ReLU(),
         )
 
         self.block_fc = nn.Sequential(
-            nn.Linear(32*10*10, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(hidden_out*10*10, 64),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Linear(128, 32),
-            nn.BatchNorm1d(32),
+
+            nn.Linear(64, 64),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Linear(32, 1),
+
+            nn.Linear(64, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+
+            nn.Linear(64, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+
+            nn.Linear(64, 1),
             nn.ReLU(),
         )
 
@@ -81,7 +93,7 @@ class Model_v3_Long_Conv(nn.Module):
         x = self.block_fc(x)
         return x.view(-1)
 
-Model = Model_v3_Long_Conv
+Model = Model_v4_Long_ConvFC
 
 def checkpoint_name(epoch, model_name, epoch_loss) -> str:
     datestr = datetime.now().strftime("(%Y.%m.%d-%H:%M:%S)")
