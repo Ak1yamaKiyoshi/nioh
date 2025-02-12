@@ -2,10 +2,10 @@
 from torch import nn 
 import torch 
 from datetime import datetime
+import os
 
 
-
-
+#### MODEL
 class Block(nn.Module):
     def __init__(self, in_channels=1, out_channels=1):
         super().__init__()
@@ -29,7 +29,6 @@ class Block(nn.Module):
                weights[:, 1:2] * conv5_out + 
                weights[:, 2:3] * conv7_out)
         return out
-
 
 class Model_v4_Long_ConvFC(nn.Module):
     def __init__(self):
@@ -92,25 +91,41 @@ class Model_v4_Long_ConvFC(nn.Module):
 
         x = self.block_fc(x)
         return x.view(-1)
+#### MODEL
 
 Model = Model_v4_Long_ConvFC
 
-def checkpoint_name(epoch, model_name, epoch_loss) -> str:
-    datestr = datetime.now().strftime("(%Y.%m.%d-%H:%M:%S)")
-    return f"cp_[{epoch}]_{model_name}_{datestr}_(l:{epoch_loss:3.2f}).pth"
+def checkpoint_name(epoch, model_name, epoch_loss=1) -> str:
+    return f"cp_[{epoch}]_{model_name}.pth"
 
-def save_checkpoint(model, optimizer, epoch, loss):
+
+
+def save_checkpoint(model, optimizer, epoch, loss, datestr, metadata=[]):
     checkpoint = {
         'model_state_dict': model.state_dict(),
-        'model': model,
         'optimizer_state_dict': optimizer.state_dict(),
-        'epoch': epoch,
-        'loss': loss
     }
+    # get current file contents
+    # find two '#### MODEL' strings
+    # cut out everything inside this block 
+    current_file = os.path.abspath(__file__)
+    with open(current_file, 'r') as f:
+        content = f.read()
+    start = content.find('#### MODEL')
+    end = content.find('#### MODEL', start + 1)
+    model_architecture = content[start: end]
+
+    os.makedirs(f"checkpoints/{model.__class__.__name__}/{datestr}", exist_ok=True)
+    path = f'checkpoints/{model.__class__.__name__}/{datestr}/{checkpoint_name(epoch, f"{model.__class__.__name__}", loss)}'
+    with open(f"checkpoints/{model.__class__.__name__}/{datestr}/architecture.txt", "w+") as f:
+        f.write(model_architecture)
     
-    path = f'checkpoints/{checkpoint_name(epoch, f"{model.__class__.__name__}", loss)}'
+    with open(f"checkpoints/{model.__class__.__name__}/{datestr}/metadata.txt", "w+") as f:
+        f.write(str(metadata))
+
     torch.save(checkpoint, path)
     return path
+
 
 def load_checkpoint(path, model=None, optimizer=None):
     checkpoint = torch.load(path, map_location='cpu', weights_only=False)
@@ -122,5 +137,10 @@ def load_checkpoint(path, model=None, optimizer=None):
         
     if optimizer is not None:
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        
-    return model, checkpoint['epoch'], checkpoint.get('loss', None)
+
+    return model
+
+
+if __name__ == "__main__":
+
+    print(model_architecture)

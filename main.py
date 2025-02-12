@@ -22,7 +22,7 @@ from torchvision.transforms import transforms
 from torchvision.models.inception import Inception3
 from model import Model, save_checkpoint, load_checkpoint
 
-from dataset import InsaneDataset
+from dataset import InsaneDatasetV2
 from loss import RMSLELoss
 
 
@@ -49,16 +49,28 @@ def prettify_float(l):
         output += f"{e:5.1f}, "
     return output
 
-print("Loading dataset")
-dataset = InsaneDataset()
-print("Dataset loaded")
+print("Loading Training dataset")
+dataset = InsaneDatasetV2([
+    "outdoor_1",
+    #"transition_1",
+    #"transition_3",
+    #"indoor_2", 
+    #"indoor_1",
+])
 
+print("Loading Validation dataset ")
+validation_dataset = InsaneDatasetV2([
+    "transition_2", 
+    #"indoor_3",
+])
 
 loader = DataLoader(dataset, 50, True)
+validation_loader = DataLoader(validation_dataset, 1, False)
+
 
 model = Model()
 start_epoch = 0
-# model, start_epoch, loss = load_checkpoint("checkpoints/cp_[1]_Model_v1_(2025.02.11-11:59:34)_(l:53.32).pth")
+# model, epoch, loss = load_checkpoint("checkpoints/cp_[7]_Model_v4_Long_ConvFC_(2025.02.11-16:54:09)_(l:47.63).pth")
 print_model_parameters(model)
 
 
@@ -70,6 +82,11 @@ losses = []
 
 total_epochs_train = 150
 
+metadata = []
+datestr = datetime.now().strftime("(%Y.%m.%d-%H:%M:%S)")
+
+
+save_checkpoint(model, optimizer, 0, 0, datestr, metadata)
 
 for epoch in range(total_epochs_train):
     epoch_loss = 0
@@ -79,6 +96,7 @@ for epoch in range(total_epochs_train):
     batches_in_loader = len(loader)
     times_per_batch = []
 
+    model.train()
     time_batch_start = time.monotonic()
     for i, batch in enumerate(loader):
 
@@ -101,32 +119,64 @@ for epoch in range(total_epochs_train):
         loss_per_batch = loss.item()
         epoch_loss += loss_per_batch
         print(f"\r[{i+1:4d}/{batches_in_loader:4d}] (batch/{mean_time_batch:5.2f}s.)  (batch loss: {loss_per_batch:5.2f}) complete in: {remained_time_estimate:7.2f}s.", end="", flush=False)
+    print("\n Validation run...")
+
+    model.eval()
+    batches_in_loader = len(validation_loader)
+    times_per_batch = []
+    validation_loss = 0
+
+    for i, batch in enumerate(validation_loader):
+        img = batch[0].to(cuda, dtype=torch.float32)
+        alt = batch[1].to(cuda, dtype=torch.float32)
+        logits = model(img)
+
+        loss = criterion(logits.cpu(), alt.cpu())
+        optimizer.zero_grad()
+
+        time_batch_end = time.monotonic()
+        time_per_batch = time_batch_end - time_batch_start
+        time_batch_start = time.monotonic()
+        times_per_batch.append(time_per_batch)
+        mean_time_batch = np.mean(times_per_batch)
+        remained_time_estimate = (batches_in_loader - i+1) * mean_time_batch
+
+        loss_per_batch = loss.item()
+        validation_loss += loss_per_batch
+        print(f"\r[{i+1:4d}/{batches_in_loader:4d}] (batch/{mean_time_batch:5.2f}s.)  (batch loss: {loss_per_batch:5.2f}) complete in: {remained_time_estimate:7.2f}s.", end="", flush=False)
     print()
-    
+
     img, alt = next(iter(loader))
     img = batch[0].to(cuda, dtype=torch.float32)
     alt = batch[1]
     pred = model(img)
-    
+
     actual_altitude = alt.detach().numpy().tolist()
     predicted_altitude = pred.cpu().detach().numpy().tolist()
+    metadata.append({
+        "epoch": epoch+1,
+        "train_loss": epoch_loss,
+        "train_loss_per_batch": epoch_loss/len(loader),
+        "validation_loss": validation_loss,
+        "validation_loss_per_batch": validation_loss/len(validation_loader)
+    })
+    
 
     print(f""" 
 [ - -- - ] Epoch: {epoch+1:4d}/{total_epochs_train:4d}
-[ - -- - ] Loss: {epoch_loss} 
+[ - -- - ] Train loss: {epoch_loss} 
+[ - -- - ] Train loss (per batch): {epoch_loss/len(loader)} 
+[ - -- - ] Validation loss: {validation_loss}
+[ - -- - ] Validation loss (per batch): {validation_loss/len(validation_loader)} 
 """)
 
     if not os.path.exists('checkpoints/'):
         os.mkdir('checkpoints')
 
-    save_checkpoint(model, optimizer, epoch, epoch_loss)
+    save_checkpoint(model, optimizer, epoch, epoch_loss, datestr, metadata)
     torch.cuda.empty_cache()
 
 
 # TODO: 
-# - evaluation dataset
 # - rewrite dataloader, make sure that in one batch there is 0-1, 15-20, 1-15 alts in same amount 
-# - use all parts of insane dataset and link them in readme 
-# - speedup dataloading 
 # - huge seconds in time estimage to minutes and hours instead.s
-# 

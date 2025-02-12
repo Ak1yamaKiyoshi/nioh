@@ -1,12 +1,15 @@
 from model import Model, load_checkpoint
-from dataset import InsaneDataset
+from dataset import InsaneDatasetV2
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 
-dataset = InsaneDataset()
+dataset = InsaneDatasetV2(
+    ["indoor_1"]
+)
+print(len(dataset))
 loader = DataLoader(dataset, 1, False)
 
-model, epoch, loss = load_checkpoint("checkpoints/cp_[79]_Model_v1_(2025.02.11-08:20:43)_(l:5.57).pth")
+model, epoch, loss = load_checkpoint("checkpoints/cp_[7]_Model_v4_Long_ConvFC_(2025.02.11-16:54:09)_(l:47.63).pth")
 model.eval()
 
 predictions = []
