@@ -30,18 +30,23 @@ class Block(nn.Module):
                weights[:, 2:3] * conv7_out)
         return out
 
-class Model_v4_Long_ConvFC(nn.Module):
+class Model_v6_Long_ConvFC(nn.Module):
     def __init__(self):
         super().__init__()
-        hidden = 32
-        hidden_out = 16
-        self.conv2fc = 512
+        hidden = 8
+        hidden_out = 4
         self.first_run = True
+        in_dimenstions = 16
+
+        # USES 300x300 inputs
         self.conv = nn.Sequential(
-            Block(1, 96),
-            nn.BatchNorm2d(96),
+            Block(1, in_dimenstions),
+            nn.BatchNorm2d(in_dimenstions),
             nn.ReLU(), 
-            Block(96, hidden),
+            Block(in_dimenstions, in_dimenstions),
+            nn.BatchNorm2d(in_dimenstions),
+            nn.ReLU(), 
+            Block(in_dimenstions, hidden),
             nn.BatchNorm2d(hidden),
             nn.ReLU(), 
             Block(hidden, hidden),
@@ -59,22 +64,22 @@ class Model_v4_Long_ConvFC(nn.Module):
             nn.Conv2d(hidden_out, hidden_out, 3, stride=5, padding=1),
             nn.BatchNorm2d(hidden_out),
             nn.ReLU(),
-        )
+        )   
 
         self.block_fc = nn.Sequential(
-            nn.Linear(hidden_out*10*10, 64),
-            nn.BatchNorm1d(64),
+            nn.Linear(hidden_out*30*30, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU(),
 
-            nn.Linear(64, 64),
-            nn.BatchNorm1d(64),
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(),
 
-            nn.Linear(64, 64),
-            nn.BatchNorm1d(64),
+            nn.Linear(128, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU(),
 
-            nn.Linear(64, 64),
+            nn.Linear(256, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
 
@@ -93,11 +98,10 @@ class Model_v4_Long_ConvFC(nn.Module):
         return x.view(-1)
 #### MODEL
 
-Model = Model_v4_Long_ConvFC
+Model = Model_v6_Long_ConvFC
 
 def checkpoint_name(epoch, model_name, epoch_loss=1) -> str:
     return f"cp_[{epoch}]_{model_name}.pth"
-
 
 
 def save_checkpoint(model, optimizer, epoch, loss, datestr, metadata=[]):
@@ -119,7 +123,7 @@ def save_checkpoint(model, optimizer, epoch, loss, datestr, metadata=[]):
     path = f'checkpoints/{model.__class__.__name__}/{datestr}/{checkpoint_name(epoch, f"{model.__class__.__name__}", loss)}'
     with open(f"checkpoints/{model.__class__.__name__}/{datestr}/architecture.txt", "w+") as f:
         f.write(model_architecture)
-    
+
     with open(f"checkpoints/{model.__class__.__name__}/{datestr}/metadata.txt", "w+") as f:
         f.write(str(metadata))
 
@@ -140,7 +144,3 @@ def load_checkpoint(path, model=None, optimizer=None):
 
     return model
 
-
-if __name__ == "__main__":
-
-    print(model_architecture)

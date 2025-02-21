@@ -82,9 +82,9 @@ class InsaneDatasetDefaultConfig:
 
 
 class InsaneDatasetV2(Dataset):
-    def __init__(self, datasets=InsaneDatasetDefaultConfig.datasets):
+    def __init__(self, datasets=InsaneDatasetDefaultConfig.datasets, imgshape=300):
         self._all_data = []
-
+        self._imageshape = imgshape
         for d in datasets:
             print(f"loading dataset... {d}")
             dataset_foldername = os.path.join(cfg.prefix, d)
@@ -119,8 +119,8 @@ class InsaneDatasetV2(Dataset):
     def __getitem__(self, idx):
         image_path, alt = self._all_data[idx]
         img = cv.imread(image_path, cv.IMREAD_GRAYSCALE)
-        img = cv.resize(img, (96, 96))
+        img = cv.resize(img, (self._imageshape , self._imageshape ))
         img = torch.from_numpy(img).float() / 255.0
-        img = img.view(1, 96, 96)
+        img = img.view(1, self._imageshape , self._imageshape )
         alt = float(alt)
         return [img, alt]

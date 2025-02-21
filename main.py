@@ -52,19 +52,19 @@ def prettify_float(l):
 print("Loading Training dataset")
 dataset = InsaneDatasetV2([
     "outdoor_1",
-    #"transition_1",
-    #"transition_3",
-    #"indoor_2", 
-    #"indoor_1",
+    "transition_1",
+    "transition_3",
+    "indoor_2", 
+    "indoor_1",
 ])
 
 print("Loading Validation dataset ")
 validation_dataset = InsaneDatasetV2([
     "transition_2", 
-    #"indoor_3",
+    "indoor_3",
 ])
 
-loader = DataLoader(dataset, 50, True)
+loader = DataLoader(dataset, 16, True)
 validation_loader = DataLoader(validation_dataset, 1, False)
 
 
@@ -77,7 +77,7 @@ print_model_parameters(model)
 criterion = RMSLELoss()
 device = cuda = torch.device("cuda")
 model.to(cuda)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.05,)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.0005,)
 losses = []
 
 total_epochs_train = 150
@@ -100,25 +100,29 @@ for epoch in range(total_epochs_train):
     time_batch_start = time.monotonic()
     for i, batch in enumerate(loader):
 
-        img = batch[0].to(cuda, dtype=torch.float32)
-        alt = batch[1].to(cuda, dtype=torch.float32)
-        logits = model(img)
+        try:
+            img = batch[0].to(cuda, dtype=torch.float32)
+            alt = batch[1].to(cuda, dtype=torch.float32)
+            logits = model(img)
+            
 
-        loss = criterion(logits.cpu(), alt.cpu())
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+            loss = criterion(logits.cpu(), alt.cpu())
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-        time_batch_end = time.monotonic()
-        time_per_batch = time_batch_end - time_batch_start
-        time_batch_start = time.monotonic()
-        times_per_batch.append(time_per_batch)
-        mean_time_batch = np.mean(times_per_batch)
-        remained_time_estimate = (batches_in_loader - i+1) * mean_time_batch
+            time_batch_end = time.monotonic()
+            time_per_batch = time_batch_end - time_batch_start
+            time_batch_start = time.monotonic()
+            times_per_batch.append(time_per_batch)
+            mean_time_batch = np.mean(times_per_batch)
+            remained_time_estimate = (batches_in_loader - i+1) * mean_time_batch
 
-        loss_per_batch = loss.item()
-        epoch_loss += loss_per_batch
-        print(f"\r[{i+1:4d}/{batches_in_loader:4d}] (batch/{mean_time_batch:5.2f}s.)  (batch loss: {loss_per_batch:5.2f}) complete in: {remained_time_estimate:7.2f}s.", end="", flush=False)
+            loss_per_batch = loss.item()
+            epoch_loss += loss_per_batch
+            print(f"\r[{i+1:4d}/{batches_in_loader:4d}] (batch/{mean_time_batch:5.2f}s.)  (batch loss: {loss_per_batch:5.2f}) complete in: {remained_time_estimate:7.2f}s.", end="", flush=False)
+        except BaseException as e:
+            print(e)
     print("\n Validation run...")
 
     model.eval()
@@ -180,3 +184,11 @@ for epoch in range(total_epochs_train):
 # TODO: 
 # - rewrite dataloader, make sure that in one batch there is 0-1, 15-20, 1-15 alts in same amount 
 # - huge seconds in time estimage to minutes and hours instead.s
+
+""" 
+    two approaches:
+        - video to distance 
+            [allow use of trackers, math and kalman filtering]
+        - use backbone like resnet 
+
+"""
